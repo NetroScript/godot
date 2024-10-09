@@ -285,19 +285,34 @@ void EditorFileSystem::_first_scan_process_scripts(const ScannedDirectory *p_sca
 		// Optimization to skip the ResourceLoader::get_resource_type for files
 		// that are not scripts. Some loader get_resource_type methods read the file
 		// which can be very slow on large projects.
+		String path = p_scan_dir->full_path.path_join(scan_file);
 		String ext = scan_file.get_extension().to_lower();
 		bool is_script = false;
+		bool is_gdextension = false;
 		for (int i = 0; i < ScriptServer::get_language_count(); i++) {
 			if (ScriptServer::get_language(i)->get_extension() == ext) {
 				is_script = true;
 				break;
 			}
 		}
-		if (!is_script) {
-			continue; // Not a script.
+
+		// GDExtension needs to be handled as a second special case, as it is not categorized
+		// as a script but also needs to be considered
+		List<String> gdextensions;
+		ResourceLoader::get_recognized_extensions_for_type("GDExtension", &gdextensions);
+
+		for (const String &extension : gdextensions) {
+			// We can assume that an extension is not loaded from a tres or res file
+			if (ext == extension && extension != "tres" && extension != "res") {
+				is_gdextension = true;
+				break;
+			}
 		}
 
-		String path = p_scan_dir->full_path.path_join(scan_file);
+		if (!is_script && !is_gdextension) {
+			continue; // Not a script or GDExtension
+		}
+
 		String type = ResourceLoader::get_resource_type(path);
 
 		if (ClassDB::is_parent_class(type, SNAME("Script"))) {
